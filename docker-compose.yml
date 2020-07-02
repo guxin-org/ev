@@ -1,0 +1,112 @@
+version: '1.4'
+services:
+  php-fpm:
+    build: ./src/php
+    ports:
+      - "9000:9000"
+    links:
+      - mysql-db:mysql-db
+    volumes:
+      - ./projects/phpweb:/var/www/html
+      - ./src/php/config:/usr/local/etc:rw
+      - ./src/php/logs:/usr/local/var/log:rw
+    restart: always
+    command: php-fpm
+    networks:
+      vpcbr:
+        ipv4_address: 172.88.0.2
+
+  nginx:
+    build: ./src/nginx
+    depends_on:
+      - php-fpm
+      - javaweb1
+      - javaweb2
+    links:
+      - php-fpm:php-fpm
+      - javaweb1:javaweb1
+      - javaweb2:javaweb2
+    volumes:
+      - ./projects/phpweb:/var/www/html
+      - ./src/nginx/config:/etc/nginx:rw
+      - ./src/nginx/logs:/var/log/nginx/:rw
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: always
+    command: nginx -g 'daemon off;'
+    networks:
+      vpcbr:
+        ipv4_address: 172.88.0.3
+
+  mysql-db:
+    build: ./src/mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql:rw
+      - ./src/mysql/config/conf.d:/etc/mysql/conf.d/:rw
+      - ./src/mysql/config/mysql.conf.d:/etc/mysql/mysql.conf.d/:rw
+      - ./src/mysql/logs:/var/log/mysql:rw
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    networks:
+      vpcbr:
+        ipv4_address: 172.88.0.4
+
+  javaweb1:
+    build: ./src/javaweb_1
+    links:
+      - mysql-db:mysql-db
+    volumes:
+      - ./projects/javaweb:/usr/local/tomcat/tomcat_space:rw
+      - ./src/mvn/settings.xml:/home/user/maven3/conf/settings.xml:rw
+      - ./src/mvn/repo:/usr/share/maven/repo:rw
+      - ./src/javaweb_1/config:/usr/local/tomcat/conf:rw
+      - ./src/javaweb_1/logs:/usr/local/tomcat/logs/:rw
+    restart: always
+    networks:
+      vpcbr:
+        ipv4_address: 172.88.0.5
+
+  javaweb2:
+    build: ./src/javaweb_2
+    links:
+      - mysql-db:mysql-db
+    volumes:
+      - ./projects/javaweb:/usr/local/tomcat/tomcat_space:rw
+      - ./src/mvn/settings.xml:/home/user/maven3/conf/settings.xml:rw
+      - ./src/mvn/repo:/usr/share/maven/repo:rw
+      - ./src/javaweb_2/config:/usr/local/tomcat/conf:rw
+      - ./src/javaweb_2/logs:/usr/local/tomcat/logs/:rw
+    restart: always
+    networks:
+      vpcbr:
+        ipv4_address: 172.88.0.6
+
+  redis:
+    build: ./src/redis
+    depends_on:
+      - php-fpm
+      - javaweb1
+      - javaweb2
+    links:
+      - javaweb1:javaweb1
+      - javaweb2:javaweb2
+      - php-fpm:php-fpm
+    volumes:
+      - ./data/redis:/data:rw
+      - ./src/redis/config/redis.conf:/usr/local/etc/redis/redis.conf:rw
+    restart: always
+    networks:
+      vpcbr:
+        ipv4_address: 172.88.0.7
+
+networks:
+  vpcbr:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.88.0.0/16
